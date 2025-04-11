@@ -14,6 +14,7 @@ class FunctionExecutionEngine:
         os.makedirs(self.temp_dir, exist_ok=True)
 
     def _wrap_code(self, code: str, language: Language) -> str:
+        """Wrap the user's code in a handler function."""
         if language == Language.PYTHON:
             # Ensure the code is properly indented
             indented_code = '\n'.join('    ' + line for line in code.split('\n'))
@@ -36,7 +37,7 @@ try:
     # Read input from file
     with open('/app/input.json', 'r') as f:
         input_data = json.load(f)
-    
+
     # Execute function
     result = handler(input_data)
     
@@ -57,9 +58,12 @@ except Exception as e:
             return f'''const fs = require('fs');
 
 // Define the handler function
-const handler = function(input_data) {{
+function handler(input_data) {{
 {indented_code}
-}};
+}}
+
+// Export the handler function
+module.exports = {{ handler }};
 
 // Read input from file
 const inputData = JSON.parse(fs.readFileSync('/app/input.json', 'utf8'));
@@ -79,12 +83,12 @@ try {{
 '''
 
     def execute(self, function_id: int, code: str, language: Language, input_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Execute a function with the given input data."""
         try:
-            # Create temporary files
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.py', dir=self.temp_dir, delete=False) as py_file, \
-                 tempfile.NamedTemporaryFile(mode='w', suffix='.js', dir=self.temp_dir, delete=False) as js_file, \
-                 tempfile.NamedTemporaryFile(mode='w', suffix='.json', dir=self.temp_dir, delete=False) as input_file, \
-                 tempfile.NamedTemporaryFile(mode='w', suffix='.json', dir=self.temp_dir, delete=False) as output_file:
+            # Create temporary files using tempfile
+            with tempfile.NamedTemporaryFile(mode='w', suffix=f'.{language}', delete=False) as function_file, \
+                 tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as input_file, \
+                 tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as output_file:
                 
                 # Write input data
                 json.dump(input_data, input_file)
@@ -92,54 +96,28 @@ try {{
                 
                 # Write function code
                 wrapped_code = self._wrap_code(code, language)
-                if language == Language.PYTHON:
-                    py_file.write(wrapped_code)
-                    py_file.flush()
-                    function_file = py_file.name
-                else:  # JavaScript
-                    js_file.write(wrapped_code)
-                    js_file.flush()
-                    function_file = js_file.name
+                function_file.write(wrapped_code)
+                function_file.flush()
                 
-                # Build Docker command
-                docker_cmd = [
-                    "docker", "run",
-                    "--memory", "128m",
-                    "--network", "none",
-                    "-v", f"{function_file}:/app/function.{'py' if language == Language.PYTHON else 'js'}",
-                    "-v", f"{input_file.name}:/app/input.json",
-                    "-v", f"{output_file.name}:/app/output.json",
-                    f"function-{language}-base",
-                    "python" if language == Language.PYTHON else "node",
-                    f"/app/function.{'py' if language == Language.PYTHON else 'js'}"
-                ]
-                
-                # Execute container
-                result = subprocess.run(docker_cmd, capture_output=True, text=True)
-                
-                if result.returncode != 0:
-                    raise Exception(f"Container execution failed: {result.stderr}")
+                # Run container
+                self._run_container(function_file.name, input_file.name, output_file.name, language)
                 
                 # Read output
                 with open(output_file.name, 'r') as f:
                     output = json.load(f)
                 
-                if "error" in output:
-                    raise Exception(output["error"])
+                # Cleanup
+                try:
+                    os.unlink(function_file.name)
+                    os.unlink(input_file.name)
+                    os.unlink(output_file.name)
+                except:
+                    pass
                 
-                return output.get("output", None)
-                
+                return output
+            
         except Exception as e:
-            logger.error(f"Error executing function {function_id}: {str(e)}")
-            raise
-        finally:
-            # Cleanup
-            try:
-                os.unlink(function_file)
-                os.unlink(input_file.name)
-                os.unlink(output_file.name)
-            except:
-                pass
+            raise Exception(f"Failed to execute function: {str(e)}")
 
     def _run_container(self, function_file: str, input_file: str, output_file: str, language: Language) -> None:
         """Run the function in a Docker container."""
@@ -150,15 +128,14 @@ try {{
             # Build the Docker command
             docker_cmd = [
                 'docker', 'run',
-                '--rm',
                 '--memory', '30m',
                 '--network', 'none',
-                '-v', f'{function_file}:/app/function.{language}',
+                '-v', f'{function_file}:/app/function.js' if language == Language.JAVASCRIPT else f'{function_file}:/app/function.py',
                 '-v', f'{input_file}:/app/input.json',
                 '-v', f'{output_file}:/app/output.json',
                 f'function-{language}-base',
                 'node' if language == Language.JAVASCRIPT else 'python',
-                f'/app/function.{language}'
+                '/app/run.js' if language == Language.JAVASCRIPT else '/app/function.py'
             ]
             
             # Run the container
