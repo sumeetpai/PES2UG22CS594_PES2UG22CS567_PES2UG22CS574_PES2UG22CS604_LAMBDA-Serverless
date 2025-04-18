@@ -6,6 +6,7 @@ from app.core.database import get_db
 from app.core.execution import FunctionExecutionEngine
 from app.models.function import Function as FunctionModel
 from app.schemas.function import Function, FunctionCreate, FunctionUpdate, FunctionExecute
+from app.models.metrics import ExecutionMetric  # <- Add this line
 
 router = APIRouter()
 execution_engine = FunctionExecutionEngine()
@@ -67,13 +68,26 @@ def execute_function(function_id: int, input_data: FunctionExecute, db: Session 
         raise HTTPException(status_code=404, detail="Function not found")
 
     try:
-        result = execution_engine.execute(
+        result, metrics = execution_engine.execute(
             function_id=function.id,
             code=function.code,
             language=function.language,
             runtime=function.runtime,
             input_data=input_data.input
         )
-        return {"result": result}
+        success = metrics.get("error") is None  # If no error, success is True
+
+        db_metric = ExecutionMetric(
+            function_id=function.id,
+            execution_time=metrics["execution_time"],
+            memory_used=metrics["memory_used"],
+            success=success,
+            error=metrics.get("error"),
+            created_at=datetime.utcnow()
+            )
+        db.add(db_metric)
+        db.commit()
+
+        return {"result": result, "metrics": metrics}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

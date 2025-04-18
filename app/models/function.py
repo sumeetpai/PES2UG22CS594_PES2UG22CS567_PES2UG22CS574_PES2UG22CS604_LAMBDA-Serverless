@@ -1,5 +1,6 @@
 from sqlalchemy import Column, Integer, String, Enum, DateTime
 from sqlalchemy.sql import func
+from sqlalchemy.orm import relationship
 from app.core.database import Base
 import enum
 
@@ -23,3 +24,6 @@ class Function(Base):
     runtime = Column(Enum(Runtime), default=Runtime.DOCKER)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    # NEW: Relationship to metrics
+    metrics = relationship("ExecutionMetric", back_populates="function", cascade="all, delete-orphan")

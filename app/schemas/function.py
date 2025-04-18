@@ -1,7 +1,18 @@
 from pydantic import BaseModel, Field
-from typing import Optional, Any
+from typing import Optional, Any, List
 from datetime import datetime
 from app.models.function import Language, Runtime
+
+# NEW: Schema for metrics
+class ExecutionMetric(BaseModel):
+    id: int
+    response_time: float
+    success: bool
+    memory_used: Optional[float] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
 
 class FunctionBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
@@ -27,8 +38,11 @@ class Function(FunctionBase):
     created_at: datetime
     updated_at: Optional[datetime] = None
 
+    # NEW: List of recent metrics (optional)
+    metrics: Optional[List[ExecutionMetric]] = []
+
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class FunctionExecute(BaseModel):
     input: Any

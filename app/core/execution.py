@@ -3,7 +3,9 @@ import json
 import tempfile
 import subprocess
 import logging
-from typing import Any, Dict
+import time
+import psutil
+from typing import Any, Dict, Tuple
 from app.models.function import Language, Runtime
 
 logger = logging.getLogger(__name__)
@@ -14,7 +16,6 @@ class FunctionExecutionEngine:
         os.makedirs(self.temp_dir, exist_ok=True)
 
     def _wrap_code(self, code: str, language: Language) -> str:
-        """Wrap the user's code in a handler function."""
         if language == Language.PYTHON:
             indented_code = '\n'.join('    ' + line for line in code.split('\n'))
             return f'''import json
@@ -46,7 +47,7 @@ except Exception as e:
     with open('/app/output.json', 'w') as f:
         json.dump({{"error": str(e)}}, f)
 '''
-        else:  # JavaScript
+        else:
             indented_code = '\n'.join('    ' + line for line in code.split('\n'))
             return f'''const fs = require('fs');
 
@@ -67,7 +68,7 @@ try {{
 }}
 '''
 
-    def execute(self, function_id: int, code: str, language: Language, input_data: Dict[str, Any], runtime: Runtime = Runtime.DOCKER) -> Dict[str, Any]:
+    def execute(self, function_id: int, code: str, language: Language, input_data: Dict[str, Any], runtime: Runtime = Runtime.DOCKER) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         try:
             with tempfile.NamedTemporaryFile(mode='w', suffix=f'.{language}', delete=False) as function_file, \
                  tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as input_file, \
@@ -80,7 +81,9 @@ try {{
                 function_file.write(wrapped_code)
                 function_file.flush()
 
+                start_time = time.time()
                 self._run_container(function_file.name, input_file.name, output_file.name, language, runtime)
+                end_time = time.time()
 
                 with open(output_file.name, 'r') as f:
                     output = json.load(f)
@@ -92,7 +95,17 @@ try {{
                 except:
                     pass
 
-                return output
+                execution_time = round(end_time - start_time, 4)
+
+                memory_used = self._get_container_memory_usage()
+
+                metrics = {
+                    "execution_time": execution_time,
+                    "memory_used": memory_used,
+                    "error": output.get("error")
+                }
+
+                return output, metrics
 
         except Exception as e:
             raise Exception(f"Failed to execute function: {str(e)}")
@@ -126,3 +139,11 @@ try {{
             raise Exception(f"Docker is not running: {str(e)}")
         except Exception as e:
             raise Exception(f"Failed to execute container: {str(e)}")
+
+    def _get_container_memory_usage(self) -> float:
+        try:
+            # Simulate placeholder for actual memory usage capture
+            # Real implementation would inspect container stats
+            return round(psutil.virtual_memory().used / (1024 * 1024), 2)  # In MB
+        except Exception:
+            return 0.0
