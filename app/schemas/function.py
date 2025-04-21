@@ -6,10 +6,11 @@ from app.models.function import Language, Runtime
 # NEW: Schema for metrics
 class ExecutionMetric(BaseModel):
     id: int
-    response_time: float
+    execution_time: float
     success: bool
     memory_used: Optional[float] = None
     created_at: datetime
+    error: Optional[str] = None
 
     class Config:
         from_attributes = True

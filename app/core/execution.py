@@ -34,7 +34,9 @@ signal.alarm(30)
 
 try:
     with open('/app/input.json', 'r') as f:
-        input_data = json.load(f)
+        data = json.load(f)
+        # Handle both direct input and nested input structure
+        input_data = data.get("input", data)
 
     result = handler(input_data)
 
@@ -57,7 +59,9 @@ function handler(input_data) {{
 
 module.exports = {{ handler }};
 
-const inputData = JSON.parse(fs.readFileSync('/app/input.json', 'utf8'));
+const data = JSON.parse(fs.readFileSync('/app/input.json', 'utf8'));
+// Handle both direct input and nested input structure
+const inputData = data.input || data;
 
 try {{
     const result = handler(inputData);
