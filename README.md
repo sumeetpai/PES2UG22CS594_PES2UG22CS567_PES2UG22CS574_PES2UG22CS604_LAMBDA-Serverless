@@ -1,6 +1,6 @@
-# Serverless Function Execution Platform
+# Serverless Function Execution Platform (Windows)
 
-A powerful platform for executing serverless functions with support for multiple runtimes (Docker and gVisor) and languages (Python and JavaScript). This platform provides a user-friendly interface for creating, executing, and monitoring functions with detailed metrics and performance analysis.
+A powerful platform for executing serverless functions with support for multiple runtimes (Docker and gVisor) and languages (Python and JavaScript). This platform provides a user-friendly interface for creating, executing, and monitoring functions with detailed metrics and performance analysis. This project is configured to run on Windows only and has not been tested on other operating systems.
 
 ## Features
 
@@ -41,9 +41,11 @@ A powerful platform for executing serverless functions with support for multiple
 
 ### Prerequisites
 - Python 3.8+
+- WSL2
 - Docker
-- gVisor (for gVisor runtime)
+- gVisor: refer to (https://dev.to/rimelek/using-gvisors-container-runtime-in-docker-desktop-374m) to set up gvisor on Windows with WSL2 backend.
 - Node.js (for JavaScript functions)
+- MySQL
 
 ### Installation
 
